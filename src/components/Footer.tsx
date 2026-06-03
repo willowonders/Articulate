@@ -11,7 +11,7 @@ export function Footer() {
             </div>
             <span className="font-heading font-semibold text-gray-700">Articulate</span>
           </div>
-      
+        
           <div className="flex items-center gap-4 text-gray-400 text-sm">
             <span>Practice speaking. Get better every day.</span>
           </div>

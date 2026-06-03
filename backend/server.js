@@ -3,7 +3,6 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Buffer } from 'node:buffer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,8 +18,16 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../dist')));
 }
 
-// Raw body capture for multipart forwarding (transcription endpoint)
-const rawBodyForMultipart = express.raw({ type: '*/*', limit: '50mb' });
+// ReadableStream helper: wrap Node.js readable stream for use with fetch()
+function readableToWebStream(readable) {
+  return new ReadableStream({
+    start(controller) {
+      readable.on('data', (chunk) => controller.enqueue(chunk));
+      readable.on('end', () => controller.close());
+      readable.on('error', (err) => controller.error(err));
+    },
+  });
+}
 
 // ── Groq Chat Completions ────────────────────────────────────────────────
 app.post('/api/groq/chat', async (req, res) => {
@@ -56,7 +63,8 @@ app.post('/api/groq/chat', async (req, res) => {
 });
 
 // ── Groq Whisper Transcription ───────────────────────────────────────────
-app.post('/api/groq/transcribe', rawBodyForMultipart, async (req, res) => {
+// Stream multipart body directly to Groq — no buffering that corrupts boundaries
+app.post('/api/groq/transcribe', async (req, res) => {
   try {
     const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
       method: 'POST',
@@ -64,7 +72,8 @@ app.post('/api/groq/transcribe', rawBodyForMultipart, async (req, res) => {
         'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
         'Content-Type': req.headers['content-type'],
       },
-      body: req.body, // Buffer from express.raw()
+      body: readableToWebStream(req),
+      duplex: 'half',
     });
 
     if (!response.ok) {

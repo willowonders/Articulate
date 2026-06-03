@@ -4,14 +4,16 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   ResponsiveContainer,
 } from 'recharts';
-import { ArrowLeft, MessageCircle, Clock, Target, AlertTriangle, CheckCircle2, HelpCircle } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Clock, Target, AlertTriangle, CheckCircle2, HelpCircle, Info } from 'lucide-react';
 import { storageService } from '../services/storage.service';
 import { getScoreColor, getScoreLabel } from '../utils/scoring';
+import { computeTextMetrics } from '../utils/textMetrics';
 import type { Session } from '../types';
 
 export function Analysis() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [session, setSession] = useState<Session | null>(null);
+  const [openSubMetrics, setOpenSubMetrics] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (sessionId) {
@@ -32,6 +34,13 @@ export function Analysis() {
   }
 
   const { analysis } = session;
+
+  // Compute text metrics from transcript for sub-metric display
+  const totalFillers = analysis.fillerWords.reduce((sum, fw) => sum + fw.count, 0);
+  const metrics = session.transcript
+    ? computeTextMetrics(session.transcript, totalFillers)
+    : null;
+
   const radarData = Object.entries(analysis.scores).map(([key, value]) => ({
     category: key.charAt(0).toUpperCase() + key.slice(1),
     score: value,
@@ -39,13 +48,44 @@ export function Analysis() {
   }));
 
   const criteriaMap: Record<string, string> = {
-    clarity: 'How clear and understandable your speech was — enunciation, articulation, and speaking pace.',
-    grammar: 'Grammatical correctness — verb tense consistency, subject-verb agreement, punctuation.',
-    vocabulary: 'Range and appropriateness of vocabulary — word choice, richness, and precision.',
-    fillerWords: 'Penalty for filler words (um, uh, like, etc.). 0 fillers = 100, each filler reduces score by ~10.',
-    structure: 'Logical flow and organization — introduction, body, conclusion, transitions between ideas.',
-    engagement: 'How interesting and compelling the speech is — energy, eye contact, conversational tone.',
+    clarity: 'Enunciation, articulation, speaking pace, and overall understandability.',
+    grammar: 'Verb tense consistency, subject-verb agreement, and sentence construction.',
+    vocabulary: 'Word choice, precision, and appropriateness for the topic.',
+    fillerWords: 'Penalty for fillers (um, uh, like, etc.). 0 fillers = 100, each filler reduces by ~10.',
+    structure: 'Logical flow, organization, transitions between ideas, and completeness.',
+    engagement: 'Compelling delivery, energy, and conversational tone.',
   };
+
+  // Sub-metrics for each category
+  const subMetrics: Record<string, { label: string; value: string | number }[]> = {};
+  if (metrics) {
+    subMetrics.clarity = [
+      { label: 'Avg words/sentence', value: metrics.avgWordsPerSentence },
+      { label: 'Long sentences (>30w)', value: metrics.longSentenceCount },
+      { label: 'Fragments (<4w)', value: metrics.fragmentCount },
+    ];
+    subMetrics.grammar = [
+      { label: 'Sentences analyzed', value: metrics.sentenceCount },
+      { label: 'Total words', value: metrics.totalWords },
+    ];
+    subMetrics.vocabulary = [
+      { label: 'Word diversity', value: `${Math.round(metrics.wordDiversityRatio * 100)}%` },
+      { label: 'Complexity ratio', value: `${Math.round(metrics.complexityRatio * 100)}%` },
+      { label: 'Repeated phrases', value: metrics.repeatedPhrases.length },
+    ];
+    subMetrics.fillerWords = [
+      { label: 'Total fillers', value: totalFillers },
+    ];
+    subMetrics.structure = [
+      { label: 'Total sentences', value: metrics.sentenceCount },
+      { label: 'Transition words', value: metrics.transitionWordCount },
+    ];
+    subMetrics.engagement = [
+      { label: 'Questions asked', value: metrics.questionCount },
+      { label: 'Exclamations', value: metrics.exclamationCount },
+      { label: 'Pace (words/sec)', value: session.duration > 0 ? (metrics.totalWords / session.duration).toFixed(1) : '—' },
+    ];
+  }
 
   const formatDuration = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -158,34 +198,57 @@ export function Analysis() {
               </div>
             </div>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {Object.entries(analysis.scores).map(([key, value]) => (
-              <div key={key} className="flex items-center gap-3">
-                <div className="flex items-center gap-1 w-28 group relative">
-                  <span className="text-sm text-gray-500 capitalize">{key}</span>
-                  {criteriaMap[key] && (
-                    <>
-                      <HelpCircle className="w-3.5 h-3.5 text-gray-300 cursor-help group-hover:text-orange-400 transition-colors flex-shrink-0" />
-                      <div className="absolute left-full ml-2 w-60 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 pointer-events-none top-1/2 -translate-y-1/2">
-                        <p className="font-semibold mb-1 capitalize">{key}</p>
-                        <p className="text-gray-300 leading-relaxed">{criteriaMap[key]}</p>
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 bg-gray-900 rotate-45" />
-                      </div>
-                    </>
+              <div key={key}>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1 w-28 group relative">
+                    <span className="text-sm text-gray-500 capitalize">{key}</span>
+                    {criteriaMap[key] && (
+                      <>
+                        <HelpCircle className="w-3.5 h-3.5 text-gray-300 cursor-help group-hover:text-orange-400 transition-colors flex-shrink-0" />
+                        <div className="absolute left-full ml-2 w-60 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 pointer-events-none top-1/2 -translate-y-1/2">
+                          <p className="font-semibold mb-1 capitalize">{key}</p>
+                          <p className="text-gray-300 leading-relaxed">{criteriaMap[key]}</p>
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 bg-gray-900 rotate-45" />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${value}%`,
+                        backgroundColor: getScoreColor(value),
+                      }}
+                    />
+                  </div>
+                  <span className="font-mono text-sm font-semibold w-10 text-right" style={{ color: getScoreColor(value) }}>
+                    {value}
+                  </span>
+                  {subMetrics[key] && (
+                    <button
+                      onClick={() => setOpenSubMetrics((prev) => ({ ...prev, [key]: !prev[key] }))}
+                      className={`ml-1 p-1 rounded-md transition-colors ${openSubMetrics[key] ? 'text-orange-500 bg-orange-50' : 'text-gray-300 hover:text-orange-400'}`}
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                    </button>
                   )}
                 </div>
-                <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${value}%`,
-                      backgroundColor: getScoreColor(value),
-                    }}
-                  />
-                </div>
-                <span className="font-mono text-sm font-semibold w-10 text-right" style={{ color: getScoreColor(value) }}>
-                  {value}
-                </span>
+                {subMetrics[key] && openSubMetrics[key] && (
+                  <div className="ml-28 mt-2 flex flex-wrap gap-2">
+                    {subMetrics[key].map((m) => (
+                      <span
+                        key={m.label}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 text-xs"
+                      >
+                        <span className="font-mono font-semibold text-gray-700">{m.value}</span>
+                        <span className="text-gray-400">{m.label}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>

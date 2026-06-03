@@ -33,7 +33,7 @@ export interface AnalysisResult {
 export interface FillerWord {
   word: string;
   count: number;
-  positions: number[];
+  positions?: number[];
 }
 
 export interface ChatMessage {

@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
 import { groqService } from '../services/groq.service';
+import { detectFillerWords, getUniqueFillerWords } from '../utils/fillerWords';
+import { computeTextMetrics } from '../utils/textMetrics';
 import type { AnalysisResult, ChatMessage } from '../types';
 
 interface UseAIAnalysisReturn {
@@ -19,7 +21,10 @@ export function useAIAnalysis(): UseAIAnalysisReturn {
       setIsAnalyzing(true);
       setError(null);
       try {
-        const result = await groqService.analyzeTranscript(transcript, topic, fillerCount, duration);
+        const { counts } = detectFillerWords(transcript);
+        const filler = getUniqueFillerWords(counts);
+        const metrics = computeTextMetrics(transcript, fillerCount);
+        const result = await groqService.analyzeTranscript(transcript, topic, metrics, duration);
         setAnalysis(result);
         return result;
       } catch (err) {

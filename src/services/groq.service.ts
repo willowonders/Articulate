@@ -1,4 +1,5 @@
 import type { AnalysisResult } from '../types';
+import type { TextMetrics } from '../utils/textMetrics';
 
 const BACKEND_URL = '/api/groq';
 const MODEL = 'llama-3.3-70b-versatile';
@@ -45,21 +46,98 @@ export const groqService = {
   async analyzeTranscript(
     transcript: string,
     topic: string,
-    fillerWordCount: number,
+    metrics: TextMetrics,
     duration: number
   ): Promise<AnalysisResult> {
-    const prompt = `You are a speech coach. Analyze this speech transcript and return ONLY valid JSON (no markdown).
+    const prompt = `You are a speech coach. Analyze this speech transcript using the provided TEXT METRICS. Return ONLY valid JSON (no markdown).
 
-Topic: "${topic}"
-Duration: ${duration} seconds
-Filler words detected: ${fillerWordCount}
+TOPIC: "${topic}"
+DURATION: ${duration} seconds
+WORD COUNT: ${metrics.totalWords}
 
-Transcript:
+TEXT METRICS (computer-calculated, use these directly):
+- Total words: ${metrics.totalWords}
+- Total sentences: ${metrics.sentenceCount}
+- Average words per sentence: ${metrics.avgWordsPerSentence}
+- Long sentences (>30 words): ${metrics.longSentenceCount}
+- Fragments (<4 words): ${metrics.fragmentCount}
+- Questions asked: ${metrics.questionCount}
+- Exclamations: ${metrics.exclamationCount}
+- Filler words detected: ${metrics.fillerCount}
+- Word diversity (unique/total): ${metrics.wordDiversityRatio}
+- Complex words (>6 chars): ${metrics.complexWordCount}
+- Simple words (<4 chars): ${metrics.simpleWordCount}
+- Complexity ratio: ${metrics.complexityRatio}
+- Transition words: ${metrics.transitionWordCount}
+- Repeated phrases: ${metrics.repeatedPhrases.length > 0 ? metrics.repeatedPhrases.join('; ') : 'none'}
+
+TRANSCRIPT:
 """
 ${transcript}
 """
 
-Return this exact JSON structure:
+Your job: interpret the meaning and intent of this speech. Provide constructive feedback.
+
+---
+
+SCORING RULES (apply these exactly):
+
+1) CLARITY (0-100)
+   - avgWordsPerSentence 10-18 → base 85
+   - avgWordsPerSentence 19-24 → base 65
+   - avgWordsPerSentence <10 → base 50 (too choppy)
+   - avgWordsPerSentence 25+ → base 40 (too dense)
+   - longSentenceCount > 3: subtract 10
+   - fragmentCount > 5: subtract 10
+   - questions > 0 (shows audience engagement): add up to +5
+   - Adjust ±10 based on transcript meaning/flow
+
+2) GRAMMAR (0-100)
+   - Start with 85. Adjust ±15 based on transcript evidence of errors.
+   - Look for: subject-verb disagreement, run-on sentences, sentence fragments,
+     missing articles/prepositions, awkward phrasing, tense inconsistency.
+   - Award full points ONLY if transcript is genuinely error-free.
+
+3) VOCABULARY (0-100)
+   - Start with 60.
+   - complexityRatio > 0.3: +10
+   - complexityRatio 0.15-0.3: +5
+   - wordDiversityRatio > 0.7: +10
+   - wordDiversityRatio 0.5-0.7: +5
+   - Repeated phrases > 2: subtract 5-10
+   - Adjust ±10 based on transcript (topic-appropriate word choice)
+
+4) FILLER WORDS (0-100)
+   - fillerCount 0 → 100
+   - fillerCount 1 → 85
+   - fillerCount 2-3 → 70
+   - fillerCount 4-5 → 50
+   - fillerCount 6-10 → 30
+   - fillerCount >10 → 15
+
+5) STRUCTURE (0-100)
+   - Start with 60.
+   - 3-15 sentences: +5 (good paragraph length)
+   - 16+ sentences: +10 (developed content)
+   - questionCount > 0: +5
+   - transitionWordCount >= 3: +10
+   - longSentenceCount > 3 or fragmentCount > 5: -10
+   - Adjust ±10 based on whether opening/body/conclusion are distinguishable.
+
+6) ENGAGEMENT (0-100)
+   - Start with 60.
+   - questionCount > 2: +10
+   - questionCount 1-2: +5
+   - exclamationCount > 0: +5
+   - wordsPerSecond > 3 (energetic pacing): +5
+   - Adjust ±10 based on transcript: humor, vivid language, storytelling, rhetorical devices.
+
+7) OVERALL SCORE
+   - Weighted average: Clarity 25%, Grammar 20%, Vocabulary 20%, Filler Words 15%, Structure 10%, Engagement 10%
+
+---
+
+OUTPUT (valid JSON only, no markdown):
 {
   "overallScore": <0-100>,
   "scores": {
@@ -71,35 +149,22 @@ Return this exact JSON structure:
     "engagement": <0-100>
   },
   "fillerWords": [
-    {"word": "<filler>", "count": <n>, "positions": [<word_indices>]}
+    {"word": "<filler>", "count": <n>}
   ],
-  "suggestions": ["<suggestion1>", "<suggestion2>", "<suggestion3>"],
-  "summary": "<2-3 sentence overall assessment>"
+  "suggestions": [
+    "<specific actionable suggestion 1>",
+    "<specific actionable suggestion 2>",
+    "<specific actionable suggestion 3>"
+  ],
+  "summary": "<2-3 sentence overall assessment. Be specific about what worked and what needs improvement.>"
 }
 
-CRITICAL: The "fillerWords" score MUST be calculated using this formula based on the filler word count provided above:
-- 0 filler words → score 100
-- 1 filler word → score 90
-- 2 filler words → score 80
-- 3 filler words → score 70
-- 4 filler words → score 60
-- 5+ filler words → score 50 or lower (decrease by 10 per additional filler)
-- NEVER assign 100 if filler words were detected. NEVER ignore the filler word count above.
-
-Also include each filler word with its count and word positions in the "fillerWords" array.
-Example: if transcript contains "um I was like um nervous", fillerWords array should be:
-[{"word": "um", "count": 2, "positions": [0, 5]}, {"word": "like", "count": 1, "positions": [3]}]
-
-Scoring rules:
-- clarity: How clear and understandable the speech is
-- grammar: Grammatical correctness
-- vocabulary: Range and appropriateness of vocabulary
-- fillerWords: MUST follow the formula above based on filler word count. Penalty for filler words.
-- structure: Logical flow and organization
-- engagement: How interesting and compelling the speech is
-- overallScore: Weighted average (Clarity 25%, Grammar 20%, Vocabulary 20%, Filler Words 15%, Structure 10%, Engagement 10%)
-
-Return ONLY the JSON object, no other text.`;
+CRITICAL RULES:
+- Use the TEXT METRICS provided above. Do NOT count words or estimate counts yourself.
+- FILLER WORDS array: include each filler word and its count. Do NOT include positions.
+- suggestions: Must be specific to THIS speech, referencing actual words from the transcript. Generic advice like "speak more clearly" is not acceptable.
+- summary: Reference specific things from the transcript.
+- Return ONLY the JSON object, no other text.`;
 
     const response = await callGroq(prompt);
     const jsonMatch = response.match(/\{[\s\S]*\}/);

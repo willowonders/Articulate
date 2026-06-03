@@ -16,14 +16,6 @@ AI-powered speech coaching app. Record yourself speaking, get instant transcript
 - **AI:** Groq (Whisper + Llama 3.3), Speechmatics (real-time transcription)
 - **Data:** localStorage (no database)
 
-## Getting Started
-
-```bash
-npm install
-cp .env.example .env.local  # add your API keys
-npm run dev
-```
-
 Frontend runs on `http://localhost:5173`, backend proxy on `http://localhost:3001`.
 
 ## Environment Variables
@@ -35,13 +27,6 @@ Frontend runs on `http://localhost:5173`, backend proxy on `http://localhost:300
 
 API keys are stored in `backend/.env` (server-side only) -- never exposed to the browser.
 
-## Deployment
-
-```bash
-npm run render-build  # install deps + build frontend
-```
-
-Deployed as a single service on Render. Set `NODE_ENV=production` and your API keys in the Render dashboard.
 
 ## License
 
