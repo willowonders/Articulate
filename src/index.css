@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  /* Orange gradient palette */
+  --color-orange-500: #FF6B35;
+  --color-orange-600: #E85D2C;
+  --color-orange-400: #FF8C5A;
+  --color-orange-300: #FFB088;
+  --color-orange-200: #FFD4BA;
+  --color-orange-100: #FFF0E5;
+  --color-orange-50: #FFF8F2;
+
+  /* Warm creams */
+  --color-cream: #FEFCF8;
+  --color-cream-dark: #FBF7F0;
+
+  /* Score colors */
+  --color-score-excellent: #22C55E;
+  --color-score-good: #FFB088;
+  --color-score-fair: #FFB088;
+  --color-score-poor: #EF4444;
+
+  /* Filler word highlight */
+  --color-filler: #FDE68A;
+  --color-filler-bg: #FEF3C7;
+
+  /* Fonts */
+  --font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Rounded corners */
+  --radius-card: 1rem;
+  --radius-button: 0.75rem;
+  --radius-pill: 9999px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #FFB088;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FF6B35;
+}
