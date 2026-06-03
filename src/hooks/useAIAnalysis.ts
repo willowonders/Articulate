@@ -22,7 +22,6 @@ export function useAIAnalysis(): UseAIAnalysisReturn {
       setError(null);
       try {
         const { counts } = detectFillerWords(transcript);
-        const filler = getUniqueFillerWords(counts);
         const metrics = computeTextMetrics(transcript, fillerCount);
         const result = await groqService.analyzeTranscript(transcript, topic, metrics, duration);
         setAnalysis(result);
